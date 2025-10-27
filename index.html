@@ -2469,15 +2469,13 @@ function closeChatModal() {
             }
         }
 
-        // ✅ FUNCIÓN MEJORADA QUE CONECTA CON TU GPT REAL
+// ✅ FUNCIÓN MEJORADA QUE CONECTA CON TU GPT REAL
 async function sendToGPTProxy(message, userId) {
     console.log("🔗 Conectando con Vitalidad Total GPT...");
     
     try {
-        // Mostrar indicador "escribiendo..."
         showTypingIndicator();
         
-        // 🎯 ESTA ES LA CONEXIÓN SEGURA CON TU GPT
         const response = await fetch('/.netlify/functions/chat-proxy', {
             method: 'POST',
             headers: {
@@ -2496,7 +2494,6 @@ async function sendToGPTProxy(message, userId) {
 
         const data = await response.json();
         
-        // Quitar indicador "escribiendo..."
         removeTypingIndicator();
         
         console.log("✅ Respuesta recibida de GPT personalizado");
@@ -2506,7 +2503,6 @@ async function sendToGPTProxy(message, userId) {
         console.error('❌ Error conectando con GPT:', error);
         removeTypingIndicator();
         
-        // Respuesta si hay error
         return `**Asesor Virtual LifeHuni**\n\nEstoy teniendo dificultades técnicas momentáneas. Mientras se soluciona, puedo informarte sobre:\n\n• **Maca-Life** - Energía y equilibrio hormonal\n• **Proteínas vegetales** - Recuperación muscular\n• **Vitaminas y minerales** - Salud integral\n\nPor favor, intenta nuevamente en unos minutos.`;
     }
 }
