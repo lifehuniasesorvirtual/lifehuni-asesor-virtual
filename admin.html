@@ -1279,6 +1279,57 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// ✅ Funcionalidad para ordenar columnas al hacer clic en la cabecera
+let currentSort = { column: null, direction: 1 }; // 1 = ascendente, -1 = descendente
+
+// Función principal para ordenar y redibujar la tabla
+function sortUsersBy(columnKey) {
+  // Si vuelven a hacer clic sobre la misma columna, invierte el orden
+  if (currentSort.column === columnKey) {
+    currentSort.direction *= -1;
+  } else {
+    currentSort.column = columnKey;
+    currentSort.direction = 1;
+  }
+
+  // Ordenar según la columna seleccionada
+  usersData.sort((a, b) => {
+    let valA = a[columnKey] || "";
+    let valB = b[columnKey] || "";
+
+    // Si es fecha, convertir a Date
+    if (columnKey === "registerDate") {
+      try {
+        valA = new Date(a.registerDate || 0);
+        valB = new Date(b.registerDate || 0);
+      } catch {
+        valA = new Date(0);
+        valB = new Date(0);
+      }
+    }
+
+    // Si es dispositivo, leer la información de dispositivo
+    if (columnKey === "deviceInfo") {
+      try {
+        const devA = a.deviceInfo || {};
+        const devB = b.deviceInfo || {};
+        valA = (devA.platform || devA.browser || "").toString().toLowerCase();
+        valB = (devB.platform || devB.browser || "").toString().toLowerCase();
+      } catch {
+        valA = "";
+        valB = "";
+      }
+    }
+
+    // Comparar alfabéticamente o por fecha
+    if (valA < valB) return -1 * currentSort.direction;
+    if (valA > valB) return 1 * currentSort.direction;
+    return 0;
+  });
+
+  // Redibujar tabla de usuarios
+  displayUsers();
+}
         // ========== GESTIÓN DE USUARIOS ==========
         async function loadUsers() {
             try {
@@ -1340,17 +1391,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let html = `
                 <table class="users-table">
-                    <thead>
-                        <tr>
-                            <th>Usuario</th>
-                            <th>Email</th>
-                            <th>Estado</th>
-                            <th>Fecha Registro</th>
-                            <th>Dispositivo</th>
-                            <th>Motivo del Rechazo</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
+  <thead>
+    <tr>
+      <th onclick="sortUsersBy('name')" style="cursor:pointer;">Usuario ⬍</th>
+      <th onclick="sortUsersBy('email')" style="cursor:pointer;">Email ⬍</th>
+      <th>Estado</th>
+      <th onclick="sortUsersBy('registerDate')" style="cursor:pointer;">Fecha Registro ⬍</th>
+      <th onclick="sortUsersBy('deviceInfo')" style="cursor:pointer;">Dispositivo ⬍</th>
+      <th>Motivo del Rechazo</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+
                     <tbody>
             `;
 
