@@ -1268,13 +1268,26 @@
     }, 300);
 }
 
-        // ✅ Compatibilidad táctil para globos en móviles (Motorola, Android, etc.)
+        // ✅ Compatibilidad táctil mejorada: doble toque en móviles para evitar toques accidentales
 document.addEventListener('DOMContentLoaded', () => {
   const statCards = document.querySelectorAll('.stat-card');
+  let lastTapTime = 0;
+
   statCards.forEach(card => {
-    // Al tocar el globo, simula clic (útil en Firefox y Android)
-    card.addEventListener('touchstart', function() {
-      this.click();
+    card.addEventListener('touchstart', function (e) {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapTime;
+
+      if (tapLength < 400 && tapLength > 0) {
+        // Doble toque detectado → ejecutar la acción
+        this.click();
+      } else {
+        // Primer toque → mostrar un pequeño aviso visual opcional
+        card.classList.add('ready-tap');
+        setTimeout(() => card.classList.remove('ready-tap'), 500);
+      }
+
+      lastTapTime = currentTime;
     }, { passive: true });
   });
 });
@@ -1402,7 +1415,6 @@ function sortUsersBy(columnKey) {
       <th>Acciones</th>
     </tr>
   </thead>
-
                     <tbody>
             `;
 
