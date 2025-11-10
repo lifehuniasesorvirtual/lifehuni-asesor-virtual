@@ -1165,9 +1165,61 @@
                 max-width: 85%;
             }
         }
+/* 🌿 Estilo de notificación flotante centrado LifeHuni */
+#toastContainer {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  width: 90%;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-top: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  font-size: 16px;
+  line-height: 1.4;
+  font-family: 'Segoe UI', sans-serif;
+  animation: fadeInOut 5s ease forwards;
+  text-align: center;
+}
+
+.toast .icon {
+  margin-right: 10px;
+  font-size: 22px;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: scale(0.95); }
+  10%, 90% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.95); }
+}
+
 </style>
 </head>
 <body>
+    
+<!-- 🌿 Contenedor para notificaciones flotantes -->
+<div id="toastContainer" style="
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2000;
+"></div>
+
 <div class="container">
 <div class="logo">
 <div class="logo-container">
@@ -1204,27 +1256,47 @@
 <span id="loginText">Ingresar al Asesor Virtual</span>
 <span class="loading" id="loginLoading" style="display: none;"></span>
 </button>
+<p style="text-align:center; margin-top:10px;">
+  <a href="#" id="forgotPasswordLink" style="color:#2E8B57; text-decoration:none;">¿Olvidaste tu contraseña?</a>
+</p>
+
 </form>
+
 <!-- Formulario de Registro -->
 <form id="registerForm" style="display: none;">
-<div class="form-group">
-<label for="registerEmail">Correo Electrónico</label>
-<input id="registerEmail" required="" type="email"/>
-</div>
-<div class="form-group">
-<label for="registerPassword">Contraseña</label>
-<input id="registerPassword" minlength="6" required="" type="password"/>
-<button class="password-toggle" data-target="registerPassword" type="button">
-                        👁️
-                    </button>
-</div>
-<div class="form-group">
-<label for="confirmPassword">Confirmar Contraseña</label>
-<input id="confirmPassword" required="" type="password"/>
-<button class="password-toggle" data-target="confirmPassword" type="button">
-                        👁️
-                    </button>
-</div>
+    <!-- ✅ NUEVOS CAMPOS AGREGADOS -->
+    <div class="form-group">
+        <label for="registerName">Nombres</label>
+        <input id="registerName" required type="text" placeholder="Tu nombre"/>
+    </div>
+    <div class="form-group">
+        <label for="registerLastName">Apellidos</label>
+        <input id="registerLastName" required type="text" placeholder="Tu apellido"/>
+    </div>
+    <div class="form-group">
+        <label for="registerPhone">Teléfono</label>
+        <input id="registerPhone" required type="tel" placeholder="Ej: 3001234567"/>
+    </div>
+    
+    <!-- 🎯 CAMPOS EXISTENTES (NO TOCAR) -->
+    <div class="form-group">
+        <label for="registerEmail">Correo Electrónico</label>
+        <input id="registerEmail" required="" type="email"/>
+    </div>
+    <div class="form-group">
+        <label for="registerPassword">Contraseña</label>
+        <input id="registerPassword" minlength="6" required="" type="password"/>
+        <button class="password-toggle" data-target="registerPassword" type="button">
+            👁️
+        </button>
+    </div>
+    <div class="form-group">
+        <label for="confirmPassword">Confirmar Contraseña</label>
+        <input id="confirmPassword" required="" type="password"/>
+        <button class="password-toggle" data-target="confirmPassword" type="button">
+            👁️
+        </button>
+    </div>
 <!-- Estado del Fingerprinting -->
 <div class="fingerprint-status" id="fingerprintStatus">
                     🔒 Detectando dispositivo...
@@ -1308,7 +1380,7 @@
             apiKey: "AIzaSyC-jbuu3oq0tOuvmwwgpoPL02oa9dqz0w0",
             authDomain: "experto-asesorvirtual-lifehuni.firebaseapp.com",
             projectId: "experto-asesorvirtual-lifehuni",
-            storageBucket: "experto-asesorvirtual-lifehuni.firebasestorage.app",
+            storageBucket: "experto-asesorvirtual-lifehuni.appspot.com",
             messagingSenderId: "885294704059",
             appId: "1:885294704059:web:049cfe61e42b030637509e"
         };
@@ -1414,7 +1486,6 @@
 
                 // Mostrar cuando esté completo
                 fingerprintStatus.style.display = 'block';
-                fingerprintStatus.textContent = '✅ Dispositivo registrado correctamente';
                 console.log('Fingerprint capturado:', deviceFingerprint);
 
             } catch (error) {
@@ -1438,6 +1509,11 @@
                 return null;
             }
         }
+        
+// Después de la función getFingerprint(), agrega:
+console.log("🔍 DEBUG FINGERPRINT - UserAgent:", navigator.userAgent);
+console.log("🔍 DEBUG FINGERPRINT - Platform:", navigator.platform);
+console.log("🔍 DEBUG FINGERPRINT - Languages:", navigator.languages);
 
         // Funciones para mostrar mensajes
         function showMessage(text, type) {
@@ -1465,104 +1541,151 @@
         // =============================================
 
         registerForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
+    e.preventDefault();
+    console.log("🎯 DEBUG - Botón de registro presionado");
 
-            // Inicializar fingerprint solo si no se ha generado aún
-            if (!deviceFingerprint) {
-                await initializeFingerprint();
-            }
-            
-            const email = document.getElementById('registerEmail').value;
-            const password = document.getElementById('registerPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
+    // Inicializar fingerprint solo si no se ha generado aún
+    if (!deviceFingerprint) {
+        console.log("🔄 DEBUG - Inicializando fingerprint...");
+        await initializeFingerprint();
+    }
+    
+    const email = document.getElementById('registerEmail').value;
+    const password = document.getElementById('registerPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    // ✅ NUEVO: Obtener datos del formulario
+    const userName = document.getElementById('registerName').value.trim();
+    const userLastName = document.getElementById('registerLastName').value.trim();
+    const userPhone = document.getElementById('registerPhone').value.trim();
+    const fullName = `${userName} ${userLastName}`.trim();
 
-            // Validaciones
-            if (password !== confirmPassword) {
-                showMessage('Las contraseñas no coinciden', 'error');
-                return;
-            }
+    console.log("🔍 DEBUG - Datos capturados:", {
+        email: email,
+        userName: userName,
+        userLastName: userLastName,
+        userPhone: userPhone,
+        fullName: fullName
+    });
 
-            if (password.length < 6) {
-                showMessage('La contraseña debe tener al menos 6 caracteres', 'error');
-                return;
-            }
+    // Validaciones
+    if (password !== confirmPassword) {
+        showMessage('Las contraseñas no coinciden', 'error');
+        return;
+    }
 
-            // Verificar que tenemos el fingerprint
-            if (!deviceFingerprint) {
-                showMessage('Error: No se pudo registrar el dispositivo. Intenta recargar la página.', 'error');
-                return;
-            }
+    if (password.length < 6) {
+        showMessage('La contraseña debe tener al menos 6 caracteres', 'error');
+        return;
+    }
 
-            showLoading(registerButton, registerText, registerLoading);
+    // ✅ NUEVO: Validaciones para los campos nuevos (MÁS FLEXIBLES)
+    if (!userName || userName.length < 2) {
+        showMessage('❌ Por favor ingresa tus nombres (mínimo 2 letras)', 'error');
+        return;
+    }
 
-            try {
-                // Crear usuario en Firebase Authentication
-                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-                const user = userCredential.user;
+    if (!userLastName || userLastName.length < 2) {
+        showMessage('❌ Por favor ingresa tus apellidos (mínimo 2 letras)', 'error');
+        return;
+    }
 
-                // Obtener timestamp actual
-                const currentTimestamp = new Date();
+    if (!userPhone || userPhone.length < 7) {
+        showMessage('❌ Por favor ingresa un teléfono válido (mínimo 7 dígitos)', 'error');
+        return;
+    }
 
-                // Información del dispositivo
-                const deviceInfo = {
-                    userAgent: navigator.userAgent,
-                    platform: navigator.platform,
-                    language: navigator.language,
-                    screenResolution: `${screen.width}x${screen.height}`,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                };
+    // Verificar que tenemos el fingerprint
+    if (!deviceFingerprint) {
+        showMessage('Error: No se pudo registrar el dispositivo. Intenta recargar la página.', 'error');
+        return;
+    }
 
-                // Guardar información adicional en Firestore CON FINGERPRINT
-                await db.collection('users').doc(user.uid).set({
-                    email: email,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    status: 'pending',
-                    devices: {
-                        [deviceFingerprint]: {
-                            deviceInfo: deviceInfo,
-                            registeredAt: currentTimestamp.toISOString(),
-                            isActive: true,
-                            lastLogin: currentTimestamp.toISOString()
-                        }
-                    },
-                    currentDevice: deviceFingerprint,
-                    pendingDevices: {}, // Para nuevos dispositivos pendientes de autorización
-                    subscription: {
-                        status: 'active',
-                        totalTokens: 1000,
-                        usedTokens: 0,
-                        remainingTokens: 1000,
-                        startDate: new Date().toISOString(),
-                        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                    }
-                });
+    showLoading(registerButton, registerText, registerLoading);
+    console.log("🔄 DEBUG - Iniciando creación de usuario...");
 
-                showMessage('✅ Cuenta creada exitosamente. Espera la activación por el administrador.', 'success');
-                registerForm.reset();
-                fingerprintStatus.style.display = 'none';
+    try {
+        // Crear usuario en Firebase Authentication
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        console.log("✅ DEBUG - Usuario de auth creado:", user.uid);
 
-            } catch (error) {
-                let errorMessage = 'Error al crear la cuenta: ';
-                
-                switch (error.code) {
-                    case 'auth/email-already-in-use':
-                        errorMessage += 'Este email ya está registrado';
-                        break;
-                    case 'auth/invalid-email':
-                        errorMessage += 'Email inválido';
-                        break;
-                    case 'auth/weak-password':
-                        errorMessage += 'La contraseña es muy débil';
-                        break;
-                    default:
-                        errorMessage += error.message;
+        // Obtener timestamp actual
+        const currentTimestamp = new Date();
+
+        // Información del dispositivo
+        const deviceInfo = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            screenResolution: `${screen.width}x${screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : 
+                    navigator.userAgent.includes('Firefox') ? 'Firefox' : 
+                    navigator.userAgent.includes('Safari') ? 'Safari' : 'Navegador'
+        };
+
+        // Guardar información adicional en Firestore CON FINGERPRINT
+        await db.collection('users').doc(user.uid).set({
+            email: email,
+            name: fullName,           // ✅ NUEVO: Nombre completo
+            firstName: userName,      // ✅ NUEVO: Solo nombre
+            lastName: userLastName,   // ✅ NUEVO: Solo apellido  
+            phone: userPhone,         // ✅ NUEVO: Teléfono
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            registerDate: currentTimestamp.toISOString(), // ✅ NUEVO CAMPO
+            status: 'pending',
+            devices: {
+                [deviceFingerprint]: {
+                    deviceInfo: deviceInfo,
+                    registeredAt: currentTimestamp.toISOString(),
+                    isActive: true,
+                    lastLogin: currentTimestamp.toISOString()
                 }
-                
-                showMessage(errorMessage, 'error');
-            } finally {
-                hideLoading(registerButton, registerText, registerLoading);
+            },
+            currentDevice: deviceFingerprint,
+            pendingDevices: {},
+            subscription: {
+                status: 'active',
+                totalTokens: 1000,
+                usedTokens: 0,
+                remainingTokens: 1000,
+                startDate: new Date().toISOString(),
+                endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
             }
         });
+
+        console.log("✅ DEBUG - Usuario guardado en Firestore");
+        showWelcomeMessage(fullName);
+registerForm.reset();
+fingerprintStatus.style.display = 'none';
+
+        registerForm.reset();
+        fingerprintStatus.style.display = 'none';
+
+    } catch (error) {
+        console.error("❌ DEBUG - Error completo:", error);
+        let errorMessage = 'Error al crear la cuenta: ';
+        
+        switch (error.code) {
+            case 'auth/email-already-in-use':
+                errorMessage += 'Este email ya está registrado';
+                break;
+            case 'auth/invalid-email':
+                errorMessage += 'Email inválido';
+                break;
+            case 'auth/weak-password':
+                errorMessage += 'La contraseña es muy débil';
+                break;
+            default:
+                errorMessage += error.message;
+        }
+        
+        showMessage(errorMessage, 'error');
+    } finally {
+        hideLoading(registerButton, registerText, registerLoading);
+    }
+});
 
         // =============================================
         // SISTEMA DE LOGIN CON VERIFICACIÓN DE FINGERPRINT (EXISTENTE)
@@ -1631,32 +1754,71 @@
                     }, 2000);
 
                 } else {
-                    // ❌ NUEVO DISPOSITIVO - Bloquear acceso y notificar
-                    await auth.signOut(); // Cerrar sesión inmediatamente
+    // ❌ NUEVO DISPOSITIVO - Bloquear acceso y notificar
+    console.log("🚨 DETECTADO NUEVO DISPOSITIVO - Iniciando proceso...");
+    
+    await auth.signOut();
 
-                    // Información del nuevo dispositivo
-                    const newDeviceInfo = {
-                        userAgent: navigator.userAgent,
-                        platform: navigator.platform,
-                        language: navigator.language,
-                        screenResolution: `${screen.width}x${screen.height}`,
-                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                        attemptedLogin: currentTimestamp
-                    };
+    // Información del nuevo dispositivo
+    const newDeviceInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        screenResolution: `${screen.width}x${screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        attemptedLogin: currentTimestamp
+    };
 
-                    // Guardar nuevo dispositivo pendiente de autorización
-                    await db.collection('users').doc(user.uid).update({
-                        [`pendingDevices.${currentFingerprint}`]: {
-                            deviceInfo: newDeviceInfo,
-                            attemptedAt: currentTimestamp,
-                            status: 'pending'
-                        }
-                    });
+    console.log("📱 Información del dispositivo:", newDeviceInfo);
 
-                    // Mostrar alerta al usuario
-                    newDeviceAlert.style.display = 'block';
-                    showMessage('❌ Dispositivo no autorizado. Se ha notificado al administrador.', 'error');
-                }
+    // Obtener datos del usuario para el admin
+    const userData = userDoc.data();
+    console.log("👤 Datos del usuario:", userData);
+
+    try {
+        console.log("🔄 Intentando guardar en pendingDevices...");
+        
+        // ✅ CORRECCIÓN: Guardar en la colección 'pendingDevices'
+        const deviceDocRef = await db.collection('pendingDevices').add({
+            userId: user.uid,
+            userEmail: user.email,
+            userName: userData.name || 'No disponible',
+            userPhone: userData.phone || 'No disponible',
+            deviceFingerprint: currentFingerprint,
+            deviceInfo: newDeviceInfo,
+            timestamp: currentTimestamp,
+            status: 'pending',
+            attemptedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log("✅ ÉXITO: Dispositivo guardado en pendingDevices con ID:", deviceDocRef.id);
+        console.log("📊 Datos guardados:", {
+            userId: user.uid,
+            userEmail: user.email,
+            deviceFingerprint: currentFingerprint
+        });
+
+        // ✅ También mantener en el usuario para referencia interna
+        await db.collection('users').doc(user.uid).update({
+            [`pendingDevices.${currentFingerprint}`]: {
+                deviceInfo: newDeviceInfo,
+                attemptedAt: currentTimestamp,
+                status: 'pending'
+            }
+        });
+
+        console.log("✅ También guardado en usuario");
+
+    } catch (error) {
+        console.error("❌ ERROR guardando dispositivo pendiente:", error);
+        console.error("🔧 Detalles del error:", error.message, error.code);
+        alert("Error técnico: " + error.message); // 👈 ESTO TE MOSTRARÁ EL ERROR EN PANTALLA
+    }
+    
+    // Mostrar alerta al usuario
+    newDeviceAlert.style.display = 'block';
+    showMessage('❌ Dispositivo no autorizado. Se ha notificado al administrador.', 'error');
+}
 
             } catch (error) {
                 let errorMessage = 'Error al iniciar sesión: ';
@@ -2469,13 +2631,15 @@ function closeChatModal() {
             }
         }
 
-// ✅ FUNCIÓN MEJORADA QUE CONECTA CON TU GPT REAL
+        // ✅ FUNCIÓN MEJORADA QUE CONECTA CON TU GPT REAL
 async function sendToGPTProxy(message, userId) {
     console.log("🔗 Conectando con Vitalidad Total GPT...");
     
     try {
+        // Mostrar indicador "escribiendo..."
         showTypingIndicator();
         
+        // 🎯 ESTA ES LA CONEXIÓN SEGURA CON TU GPT
         const response = await fetch('/.netlify/functions/chat-proxy', {
             method: 'POST',
             headers: {
@@ -2494,6 +2658,7 @@ async function sendToGPTProxy(message, userId) {
 
         const data = await response.json();
         
+        // Quitar indicador "escribiendo..."
         removeTypingIndicator();
         
         console.log("✅ Respuesta recibida de GPT personalizado");
@@ -2503,6 +2668,7 @@ async function sendToGPTProxy(message, userId) {
         console.error('❌ Error conectando con GPT:', error);
         removeTypingIndicator();
         
+        // Respuesta si hay error
         return `**Asesor Virtual LifeHuni**\n\nEstoy teniendo dificultades técnicas momentáneas. Mientras se soluciona, puedo informarte sobre:\n\n• **Maca-Life** - Energía y equilibrio hormonal\n• **Proteínas vegetales** - Recuperación muscular\n• **Vitaminas y minerales** - Salud integral\n\nPor favor, intenta nuevamente en unos minutos.`;
     }
 }
@@ -2868,6 +3034,91 @@ async function sendToGPTProxy(message, userId) {
 <script>
     // Script para el timestamp inicial
     document.getElementById('initialTime').textContent = new Date().toLocaleTimeString('es-CO');
+    
 </script>
+<script>
+function showWelcomeMessage(fullName) {
+  const messageHTML = `
+    <div style="font-family: Arial, sans-serif; text-align: center; color: #333; padding: 20px;">
+      <h2 style="color:#2E8B57;">¡Bienvenido(a) a Experto Asesor Virtual Lifehuni!</h2>
+      <p style="font-size:16px; line-height:1.5;">
+        Hemos recibido tu registro y actualmente se encuentra en proceso de revisión.<br>
+        Te avisaremos por correo cuando tu cuenta sea aprobada y activada.
+      </p>
+      <button onclick="switchToLogin()" 
+        style="margin-top:15px; background:#2E8B57; color:#fff; border:none; padding:10px 16px; 
+               border-radius:8px; cursor:pointer; font-size:15px;">
+        Ir al inicio de sesión
+      </button>
+    </div>
+  `;
+
+  const msg = document.getElementById('message');
+  msg.innerHTML = messageHTML;
+  msg.className = 'message success';
+  msg.style.display = 'block';
+  document.getElementById('registerForm').style.display = 'none';
+}
+
+// Cambia a la pestaña de login (si ya existe el botón en tu código)
+function switchToLogin() {
+  document.getElementById('loginBtn').classList.add('active');
+  document.getElementById('registerBtn').classList.remove('active');
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('registerForm').style.display = 'none';
+}
+
+</script>
+<script>
+// 💡 Recuperar contraseña usando Firebase Auth
+document.getElementById("forgotPasswordLink").addEventListener("click", function (e) {
+  e.preventDefault();
+
+  const email = prompt("Por favor, ingresa tu correo electrónico registrado para restablecer tu contraseña:");
+  if (!email) return;
+
+  firebase.auth().sendPasswordResetEmail(email)
+    .then(() => {
+      alert("📩 Te enviamos un enlace para restablecer tu contraseña. Si no lo encuentras pronto, revisa también las carpetas: Spam, No deseado o Promociones — a veces llega allí por error. 🌿", "success.");
+    })
+    .catch((error) => {
+      console.error(error);
+      if (error.code === "auth/user-not-found") {
+        alert("⚠️ No existe una cuenta registrada con ese correo.");
+      } else if (error.code === "auth/invalid-email") {
+        alert("⚠️ Correo electrónico no válido.");
+      } else {
+        alert("❌ Ocurrió un error al intentar enviar el correo. Inténtalo nuevamente.");
+      }
+    });
+});
+</script>
+
+<script>
+// 🌿 Función para mostrar notificaciones flotantes
+function showToast(message, type = "success") {
+  const container = document.getElementById("toastContainer");
+  const toast = document.createElement("div");
+  toast.classList.add("toast");
+
+  if (type === "success") {
+    toast.style.backgroundColor = "#d4edda";
+    toast.style.color = "#155724";
+    toast.style.borderColor = "#c3e6cb";
+    toast.innerHTML = `<span class="icon">📩</span> ${message}`;
+  } else if (type === "error") {
+    toast.style.backgroundColor = "#f8d7da";
+    toast.style.color = "#721c24";
+    toast.style.borderColor = "#f5c6cb";
+    toast.innerHTML = `<span class="icon">⚠️</span> ${message}`;
+  }
+
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.remove();
+  }, 5000);
+}
+</script>
+
 </body>
 </html>
