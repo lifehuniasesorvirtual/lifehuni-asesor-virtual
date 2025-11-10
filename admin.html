@@ -1259,6 +1259,16 @@
                 section.classList.remove('section-highlight');
             }, 2000);
         }
+        // ✅ Compatibilidad táctil para globos en móviles (Motorola, Android, etc.)
+document.addEventListener('DOMContentLoaded', () => {
+  const statCards = document.querySelectorAll('.stat-card');
+  statCards.forEach(card => {
+    // Al tocar el globo, simula clic (útil en Firefox y Android)
+    card.addEventListener('touchstart', function() {
+      this.click();
+    }, { passive: true });
+  });
+});
 
         // ========== GESTIÓN DE USUARIOS ==========
         async function loadUsers() {
