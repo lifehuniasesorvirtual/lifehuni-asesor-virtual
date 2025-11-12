@@ -1870,30 +1870,18 @@ fingerprintStatus.style.display = 'none';
                 <div class="expired-screen">
                     <div class="warning-icon">🚫</div>
                     <h2>Servicio Suspendido</h2>
-                    <p>Tu suscripción Lifehuni ha vencido</p>
+                    <p>Tu suscripción Experto Asesor Virtual Lifehuni ha vencido</p>
                     <p><strong>Usuario:</strong> ${email}</p>
                     
                     <div class="renewal-options">
-                        <div class="plan-option">
-                            <h3>🟢 Plan Básico</h3>
-                            <p>500 tokens - 30 días</p>
-                            <span class="price">$29 USD</span>
-                            <button class="renew-btn" onclick="contactAdminForRenewal('basic')">Renovar Ahora</button>
-                        </div>
-                        
+                                             
                         <div class="plan-option recommended">
                             <h3>🟡 Plan Premium</h3>
-                            <p>1000 tokens - 30 días</p>
-                            <span class="price">$49 USD</span>
+                            <p>100000 tokens - 30 días</p>
+                            <span class="price">$25.000 COP</span>
                             <button class="renew-btn" onclick="contactAdminForRenewal('premium')">Renovar Ahora</button>
                         </div>
-
-                        <div class="plan-option">
-                            <h3>🔴 Plan Pro</h3>
-                            <p>2000 tokens - 30 días</p>
-                            <span class="price">$79 USD</span>
-                            <button class="renew-btn" onclick="contactAdminForRenewal('pro')">Renovar Ahora</button>
-                        </div>
+            
                     </div>
                     
                     <p class="support-text">¿Problemas con la renovación? <a href="#" onclick="contactSupport()">Contactar soporte</a></p>
@@ -1901,20 +1889,67 @@ fingerprintStatus.style.display = 'none';
                 </div>
             `;
         }
+// ✅ Evita duplicar solicitudes de renovación y muestra mensajes claros
+async function contactAdminForRenewal(plan) {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        alert("⚠️ Debes iniciar sesión para enviar una solicitud de renovación.");
+        return;
+    }
 
-        function contactAdminForRenewal(plan) {
-            const planNames = {
-                'basic': 'Básico (500 tokens)',
-                'premium': 'Premium (1000 tokens)',
-                'pro': 'Pro (2000 tokens)'
-            };
-            
-            alert(`🔄 Solicitud de renovación enviada\n\nPlan: ${planNames[plan]}\n\nEl administrador ha sido notificado. Te contactaremos pronto para confirmar el pago y reactivar tu servicio.`);
+    const email = user.email;
+    const db = firebase.firestore();
+
+    try {
+        // Verifica si ya existe una solicitud pendiente o activa de este usuario
+        const existing = await db.collection("renewalRequests")
+            .where("userEmail", "==", email)
+            .where("status", "in", ["pending", "approved"])
+            .get();
+
+        if (!existing.empty) {
+            // 🔔 Mensaje más profesional para usuarios que ya solicitaron renovación
+            alert(
+                "📨 Tu solicitud de renovación ya fue enviada al administrador.\n\nNuestro equipo está revisando tu caso. " +
+                "Por favor, espera la confirmación en las próximas horas antes de volver a intentarlo.\n\nGracias por tu paciencia 🙏"
+            );
+            return;
         }
 
-        function contactSupport() {
-            alert('📞 Contacta al soporte:\n\nEmail: soporte@lifehuni.com\nWhatsApp: +57 300 123 4567\n\nEstamos aquí para ayudarte.');
-        }
+        // Si no hay solicitudes duplicadas, crea una nueva
+        await db.collection("renewalRequests").add({
+            userEmail: email,
+            plan: plan,
+            status: "pending",
+            requestDate: new Date().toISOString()
+        });
+
+        alert(
+            "✅ Solicitud de renovación enviada exitosamente.\n\nEl administrador ha sido notificado y revisará tu solicitud en breve.\n" +
+            "Te contactaremos pronto para confirmar el pago y reactivar tu acceso al servicio."
+        );
+    } catch (error) {
+        console.error("Error enviando solicitud de renovación:", error);
+        alert("❌ Error al enviar la solicitud. Inténtalo nuevamente más tarde.");
+    }
+}
+       
+       function contactSupport() {
+    const user = firebase.auth().currentUser; // obtiene el usuario actual
+    const phoneNumber = "573023706402"; // sin el símbolo +, con el indicativo de país
+
+    // Si el usuario está autenticado, usamos su correo; si no, dejamos uno genérico
+    const email = user ? user.email : "Usuario no identificado";
+
+    const message = encodeURIComponent(
+        `¡Hola! Soy ${email}, necesito ayuda con mi suscripción Experto Asesor Virtual LifeHuni.`
+    );
+
+    const url = `https://wa.me/${phoneNumber}?text=${message}`;
+
+    // Abre WhatsApp en el navegador o en la app del celular
+    window.open(url, "_blank");
+}
 
         // =============================================
         // DASHBOARD CLIENTE PREMIUM - VERSIÓN OPTIMIZADA (EXISTENTE)
@@ -2314,23 +2349,6 @@ fingerprintStatus.style.display = 'none';
             });
         }
 
-        // 🔄 INICIAR ACTUALIZACIONES EN TIEMPO REAL
-        function startRealTimeUpdates(userUID) {
-            // Suscribirse a cambios en Firestore
-            const userUnsubscribe = db.collection('users').doc(userUID)
-                .onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const userData = doc.data();
-                        updateDashboardWithRealTimeData(userData);
-                    }
-                }, (error) => {
-                    console.error('Error en actualización en tiempo real:', error);
-                });
-
-            // Guardar referencia para limpiar después
-            window.dashboardUnsubscribe = userUnsubscribe;
-        }
-
         // 🔄 ACTUALIZAR DASHBOARD CON DATOS EN TIEMPO REAL
         function updateDashboardWithRealTimeData(userData) {
             // Actualizar tokens si existen
@@ -2393,7 +2411,7 @@ fingerprintStatus.style.display = 'none';
                 }
 
                 // Crear solicitud de renovación en Firestore
-                await db.collection('renewal_requests').add({
+                await db.collection('renewalRequests').add({
                     userId: user.uid,
                     userEmail: user.email,
                     requestedPlan: 'Premium',
@@ -2966,23 +2984,50 @@ async function sendToGPTProxy(message, userId) {
 
         // 🔄 INICIAR ACTUALIZACIONES EN TIEMPO REAL - VERSIÓN MEJORADA
         function startRealTimeUpdates(userUID) {
-            // Suscribirse a cambios en Firestore del usuario
-            const userUnsubscribe = db.collection('users').doc(userUID)
-                .onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const userData = doc.data();
-                        updateDashboardWithRealTimeData(userData);
-                    }
-                }, (error) => {
-                    console.error('Error en actualización en tiempo real:', error);
-                });
+    // Suscribirse a cambios en el documento de usuario
+    const userUnsubscribe = db.collection('users').doc(userUID)
+        .onSnapshot((doc) => {
+            if (doc.exists) {
+                const userData = doc.data();
+                updateDashboardWithRealTimeData(userData);
 
-            // Iniciar escucha de notificaciones
-            startNotificationListener(userUID);
+                // Si ya hay un listener de renovaciones, lo removemos para evitar duplicados
+                if (window.renewalUnsubscribe) {
+                    try { window.renewalUnsubscribe(); } catch(e) { /* ignore */ }
+                    window.renewalUnsubscribe = null;
+                }
 
-            // Guardar referencias para limpiar después
-            window.dashboardUnsubscribe = userUnsubscribe;
-        }
+                // Crear un listener en tiempo real para la última solicitud de renovación de este usuario
+                if (userData && userData.email) {
+                    window.renewalUnsubscribe = db.collection("renewalRequests")
+                        .where("userEmail", "==", userData.email)
+                        .orderBy("requestedAt", "desc")
+                        .limit(1)
+                        .onSnapshot((snapshot) => {
+                            if (snapshot.empty) return;
+                            const doc = snapshot.docs[0];
+                            const request = doc.data();
+                            const status = request.status;
+
+                            if (status === "approved") {
+                                showDashboardMessage("🎉 Tu renovación ha sido aprobada. El acceso ha sido reactivado.", "success");
+                            } else if (status === "rejected") {
+                                showDashboardMessage("❌ Tu renovación fue rechazada. Contacta soporte para más información.", "error");
+                            } else if (status === "pending") {
+                                showDashboardMessage("⌛ Tu solicitud de renovación está pendiente de revisión por el administrador.", "info");
+                            }
+                        }, (err) => {
+                            console.error("Error escuchando renovaciones:", err);
+                        });
+                }
+            }
+        }, (error) => {
+            console.error('Error en actualización en tiempo real:', error);
+        });
+
+    // Guardar referencia para limpiar después
+    window.dashboardUnsubscribe = userUnsubscribe;
+}
 
         // 🧹 LIMPIAR RECURSOS AL SALIR - VERSIÓN MEJORADA
         function cleanupDashboard() {

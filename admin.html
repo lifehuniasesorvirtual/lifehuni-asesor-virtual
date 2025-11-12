@@ -906,6 +906,20 @@
   font-size: 16px;
   margin-top: 1px;
 }
+/* === Estilo del botón de WhatsApp === */
+.btn-whatsapp {
+    background-color: #25D366;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: 0.2s;
+}
+.btn-whatsapp:hover {
+    background-color: #1EBE57;
+}
     </style>
 </head>
 <body>
@@ -2011,74 +2025,78 @@ function showDeviceDetails(deviceId) {
         }
 
         function displayRenewalRequests() {
-            const renewalsTable = document.getElementById('renewalsTable');
-            
-            if (renewalRequestsData.length === 0) {
-                renewalsTable.innerHTML = `
-                    <div class="no-renewals">
-                        <p>🔄 No hay solicitudes de renovación</p>
-                        <p style="font-size: 12px; margin-top: 10px;">Los clientes aparecerán aquí cuando soliciten renovar su suscripción</p>
+    const renewalsTable = document.getElementById('renewalsTable');
+    
+    if (renewalRequestsData.length === 0) {
+        renewalsTable.innerHTML = `
+            <div class="no-renewals">
+                <p>🔄 No hay solicitudes de renovación</p>
+                <p style="font-size: 12px; margin-top: 10px;">Los clientes aparecerán aquí cuando soliciten renovar su suscripción</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <table class="renewals-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Email</th>
+                    <th>Fecha Solicitud</th>
+                    <th>Estado</th>
+                    <th>Plan Actual</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    renewalRequestsData.forEach(request => {
+        const requestDate = request.requestDate ? new Date(request.requestDate).toLocaleDateString() : 'No registrada';
+        const currentPlan = request.currentPlan || 'No especificado';
+        const userEmail = request.userEmail || 'No disponible';
+
+        html += `
+            <tr>
+                <td>
+                    <strong>${request.userName || 'No disponible'}</strong>
+                    ${request.userPhone ? `<br><small>📞 ${request.userPhone}</small>` : ''}
+                </td>
+                <td>${userEmail}</td>
+                <td>${requestDate}</td>
+                <td>
+                    <span class="status-${request.status}">
+                        ${getRenewalStatusText(request.status)}
+                    </span>
+                </td>
+                <td>${currentPlan}</td>
+                <td>
+                    <div class="action-buttons-container">
+                        ${request.status === 'pending' ? `
+                            <button class="btn-approve" onclick="approveRenewal('${request.id}')">✅ Aprobar</button>
+                            <button class="btn-reject" onclick="rejectRenewal('${request.id}')">❌ Rechazar</button>
+                        ` : ''}
+
+                        ${request.status === 'approved' ? `
+                            <button class="btn-reject" onclick="rejectRenewal('${request.id}')">❌ Revocar</button>
+                        ` : ''}
+
+                        ${request.status === 'rejected' ? `
+                            <button class="btn-approve" onclick="approveRenewal('${request.id}')">✅ Re-activar</button>
+                        ` : ''}
+
+                        <!-- 📱 Nuevo botón de WhatsApp -->
+                        <button class="btn-whatsapp" onclick="contactClientByWhatsApp('${userEmail}')">📱 WhatsApp</button>
                     </div>
-                `;
-                return;
-            }
+                </td>
+            </tr>
+        `;
+    });
 
-            let html = `
-                <table class="renewals-table">
-                    <thead>
-                        <tr>
-                            <th>Usuario</th>
-                            <th>Email</th>
-                            <th>Fecha Solicitud</th>
-                            <th>Estado</th>
-                            <th>Plan Actual</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            renewalRequestsData.forEach(request => {
-                const requestDate = request.requestDate ? new Date(request.requestDate).toLocaleDateString() : 'No registrada';
-                const currentPlan = request.currentPlan || 'No especificado';
-
-                html += `
-                    <tr>
-                        <td>
-                            <strong>${request.userName || 'No disponible'}</strong>
-                            ${request.userPhone ? `<br><small>📞 ${request.userPhone}</small>` : ''}
-                        </td>
-                        <td>${request.userEmail}</td>
-                        <td>${requestDate}</td>
-                        <td>
-                            <span class="status-${request.status}">
-                                ${getRenewalStatusText(request.status)}
-                            </span>
-                        </td>
-                        <td>${currentPlan}</td>
-                        <td>
-                            <div class="action-buttons-container">
-                                ${request.status === 'pending' ? `
-                                    <button class="btn-approve" onclick="approveRenewal('${request.id}')">✅ Aprobar</button>
-                                    <button class="btn-reject" onclick="rejectRenewal('${request.id}')">❌ Rechazar</button>
-                                ` : ''}
-                                
-                                ${request.status === 'approved' ? `
-                                    <button class="btn-reject" onclick="rejectRenewal('${request.id}')">❌ Revocar</button>
-                                ` : ''}
-                                
-                                ${request.status === 'rejected' ? `
-                                    <button class="btn-approve" onclick="approveRenewal('${request.id}')">✅ Re-activar</button>
-                                ` : ''}
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody></table>`;
-            renewalsTable.innerHTML = html;
-        }
+    html += `</tbody></table>`;
+    renewalsTable.innerHTML = html;
+}
 
         function getRenewalStatusText(status) {
             const statusMap = {
@@ -2309,6 +2327,17 @@ async function loadExpiringUsers() {
 
 // Llamamos la función cuando cargue el panel
 document.addEventListener("DOMContentLoaded", loadExpiringUsers);
+
+// ✅ Función para contactar al cliente por WhatsApp
+function contactClientByWhatsApp(clientEmail) {
+    const phoneNumber = "573023706402"; // tu número de WhatsApp (admin)
+    const message = encodeURIComponent(
+        `Hola ${clientEmail}, soy del equipo Experto Asesor Virtual LifeHuni. Vimos tu solicitud de renovación. ¿Deseas continuar con el proceso?`
+    );
+    const url = `https://wa.me/${phoneNumber}?text=${message}`;
+    window.open(url, "_blank");
+}
+
 </script>
     </body>
 </html>
