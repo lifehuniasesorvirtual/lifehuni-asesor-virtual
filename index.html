@@ -1391,6 +1391,91 @@
         // Inicializar servicios
         const auth = firebase.auth();
         const db = firebase.firestore();
+// ============================
+// CONTROL DEL ESTADO DE SESIÓN (listener)
+// ============================
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        console.log("✅ Sesión activa:", user.email);
+
+        try {
+            // Obtener datos del usuario en Firestore
+            const userDoc = await db.collection("users").doc(user.uid).get();
+
+            if (!userDoc.exists) {
+                console.warn("⚠️ El usuario no tiene documento en Firestore");
+                // Forzamos cierre de sesión si falta el doc
+                await auth.signOut();
+                return;
+            }
+
+            const userData = userDoc.data();
+
+            // Obtener approvedAt de forma segura (timestamp o string)
+            let approvedAt = null;
+            if (userData.approvedAt) {
+                if (typeof userData.approvedAt.toDate === 'function') {
+                    approvedAt = userData.approvedAt.toDate();
+                } else {
+                    approvedAt = new Date(userData.approvedAt);
+                }
+            }
+
+            const now = new Date();
+
+            if (!approvedAt) {
+                // Sin fecha de aprobación: mostrar pantalla de suscripción vencida
+                showExpiredSubscriptionScreen(user.email);
+                return;
+            }
+
+            const diffMs = now - approvedAt;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffDays >= 30) {
+                // Suscripción vencida: mostrar pantalla de renovación
+                showExpiredSubscriptionScreen(user.email);
+            } else {
+                // Suscripción activa: cargar el dashboard normal
+                // (asegúrate de tener definida la función loadDashboard)
+                if (typeof loadDashboard === 'function') {
+                    loadDashboard(userData);
+                } else {
+                    console.warn("loadDashboard() no está definida.");
+                }
+
+                // Además, iniciar el listener en tiempo real para renovaciones
+                if (typeof startRealTimeUpdates === 'function') {
+                    startRealTimeUpdates(user.uid);
+                }
+            }
+        } catch (error) {
+            console.error("❌ Error verificando estado de usuario:", error);
+            showExpiredSubscriptionScreen(user.email);
+        }
+        } else {
+        console.log("🔒 Sesión cerrada o no iniciada");
+
+        // Mostrar mensaje simple invitando a iniciar sesión
+        document.body.innerHTML = `
+            <div style="text-align:center; margin-top:40px; color:white;">
+                <h2>Por favor inicia sesión para continuar</h2>
+                <button id="reloadButton" style="padding:10px 20px; margin-top:20px;">Ir al inicio</button>
+            </div>
+        `;
+
+        // 🔄 Forzar recarga del contenido original del index (con ligera espera)
+        setTimeout(() => {
+            const reloadButton = document.getElementById('reloadButton');
+            if (reloadButton) {
+                reloadButton.addEventListener('click', () => {
+                    // Recarga toda la página completa (no solo el HTML interno)
+                    window.location.reload(true);
+                });
+            }
+        }, 100);
+    }
+});
 
         // Variable global para el fingerprint
         let deviceFingerprint = null;
@@ -1889,48 +1974,43 @@ fingerprintStatus.style.display = 'none';
                 </div>
             `;
         }
-// ✅ Evita duplicar solicitudes de renovación y muestra mensajes claros
 async function contactAdminForRenewal(plan) {
     const user = firebase.auth().currentUser;
+
     if (!user) {
-        alert("⚠️ Debes iniciar sesión para enviar una solicitud de renovación.");
+        alert("🔒 Debes iniciar sesión nuevamente para enviar tu solicitud de renovación.");
+        firebase.auth().signOut();
+        setTimeout(() => {
+            window.location.href = "index.html"; // vuelve a login
+        }, 2000);
         return;
     }
 
-    const email = user.email;
-    const db = firebase.firestore();
-
     try {
-        // Verifica si ya existe una solicitud pendiente o activa de este usuario
-        const existing = await db.collection("renewalRequests")
-            .where("userEmail", "==", email)
-            .where("status", "in", ["pending", "approved"])
+        // Verificar si ya existe una solicitud pendiente
+        const existingRequest = await db.collection('renewalRequests')
+            .where('userId', '==', user.uid)
+            .where('status', '==', 'pending')
             .get();
 
-        if (!existing.empty) {
-            // 🔔 Mensaje más profesional para usuarios que ya solicitaron renovación
-            alert(
-                "📨 Tu solicitud de renovación ya fue enviada al administrador.\n\nNuestro equipo está revisando tu caso. " +
-                "Por favor, espera la confirmación en las próximas horas antes de volver a intentarlo.\n\nGracias por tu paciencia 🙏"
-            );
+        if (!existingRequest.empty) {
+            alert("📬 Ya has enviado una solicitud de renovación. Espera la respuesta del administrador.");
             return;
         }
 
-        // Si no hay solicitudes duplicadas, crea una nueva
-        await db.collection("renewalRequests").add({
-            userEmail: email,
-            plan: plan,
-            status: "pending",
-            requestDate: new Date().toISOString()
+        // Crear nueva solicitud de renovación
+        await db.collection('renewalRequests').add({
+            userId: user.uid,
+            userEmail: user.email,
+            requestedPlan: 'Premium',
+            status: 'pending',
+            requestedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        alert(
-            "✅ Solicitud de renovación enviada exitosamente.\n\nEl administrador ha sido notificado y revisará tu solicitud en breve.\n" +
-            "Te contactaremos pronto para confirmar el pago y reactivar tu acceso al servicio."
-        );
+        alert("✅ Solicitud enviada correctamente. Te contactaremos para confirmar el pago y reactivar tu servicio.");
     } catch (error) {
-        console.error("Error enviando solicitud de renovación:", error);
-        alert("❌ Error al enviar la solicitud. Inténtalo nuevamente más tarde.");
+        console.error("Error enviando solicitud:", error);
+        alert("❌ Ocurrió un error al enviar la solicitud. Intenta nuevamente.");
     }
 }
        
