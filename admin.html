@@ -1780,50 +1780,41 @@ function sortUsersBy(columnKey) {
             return statusMap[status] || status;
         }
 
-        // ========== APROBACIÓN Y RECHAZO DE USUARIOS ==========
-       function approveUser(userId) {
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + 30); // 30 días desde hoy
+        // ✅ Aprobar todos los usuarios pendientes y crear suscripción inicial
+async function approveAllPending() {
+    const pendingUsers = usersData.filter(user => user.status === 'pending');
+    
+    if (pendingUsers.length === 0) {
+        showToast('ℹ️ No hay usuarios pendientes por aprobar', 'warning');
+        return;
+    }
 
-    db.collection("users").doc(userId).update({
-        status: "approved",
-        renewalDate: expirationDate.toISOString() // guardamos la fecha en formato ISO
-    }).then(() => {
-        alert("✅ Usuario aprobado correctamente.\nFecha de vencimiento: " + expirationDate.toLocaleDateString());
-        displayUsers();
-        loadExpiringUsers(); // recargamos la sección amarilla
-    });
+    try {
+        const batch = db.batch();
+        const now = new Date();
+        const endDate = new Date();
+        endDate.setDate(now.getDate() + 30); // duración inicial: 30 días
+
+        pendingUsers.forEach(user => {
+            const userRef = db.collection('users').doc(user.id);
+            batch.update(userRef, {
+                status: 'approved',
+                approvedBy: currentUser.email,
+                subscription: {
+                    status: "active",
+                    endDate: endDate.toISOString()
+                }
+            });
+        });
+
+        await batch.commit();
+        showToast(`✅ ${pendingUsers.length} usuarios aprobados y activados correctamente`, 'success');
+        loadUsers();
+    } catch (error) {
+        console.error('Error aprobando usuarios:', error);
+        showToast('❌ Error al aprobar usuarios', 'error');
+    }
 }
-
-        async function approveAllPending() {
-            const pendingUsers = usersData.filter(user => user.status === 'pending');
-            
-            if (pendingUsers.length === 0) {
-                showToast('ℹ️ No hay usuarios pendientes por aprobar', 'warning');
-                return;
-            }
-
-            try {
-                const batch = db.batch();
-                const timestamp = new Date().toISOString();
-                
-                pendingUsers.forEach(user => {
-                    const userRef = db.collection('users').doc(user.id);
-                    batch.update(userRef, {
-                        status: 'approved',
-                        approvedAt: timestamp,
-                        approvedBy: currentUser.email
-                    });
-                });
-                
-                await batch.commit();
-                showToast(`✅ ${pendingUsers.length} usuarios aprobados correctamente`, 'success');
-                loadUsers();
-            } catch (error) {
-                console.error('Error aprobando usuarios:', error);
-                showToast('❌ Error al aprobar usuarios', 'error');
-            }
-        }
 
         function openRejectModal(userId) {
             userToReject = userId;
@@ -1858,29 +1849,42 @@ function sortUsersBy(columnKey) {
             }
         }
 
-        async function setUserStatus(userId, status) {
-            try {
-                const updateData = {
-                    status: status
-                };
-                
-                if (status === 'approved') {
-                    updateData.approvedAt = new Date().toISOString();
-                    updateData.approvedBy = currentUser.email;
-                } else if (status === 'rejected') {
-                    updateData.rejectedAt = new Date().toISOString();
-                    updateData.rejectedBy = currentUser.email;
-                }
-                
-                await db.collection('users').doc(userId).update(updateData);
-                
-                showToast(`✅ Estado actualizado a: ${getStatusText(status)}`, 'success');
-                loadUsers();
-            } catch (error) {
-                console.error('Error actualizando estado:', error);
-                showToast('❌ Error al actualizar estado', 'error');
-            }
+        // ✅ Actualizar el estado del usuario y gestionar su suscripción
+async function setUserStatus(userId, status) {
+    try {
+        const userRef = db.collection('users').doc(userId);
+        const updateData = {
+            status: status
+        };
+
+        if (status === 'approved') {
+            const now = new Date();
+            const endDate = new Date();
+            endDate.setDate(now.getDate() + 30); // suscripción inicial de 30 días
+
+            updateData.approvedBy = currentUser.email;
+            updateData.subscription = {
+                status: "active",
+                endDate: endDate.toISOString()
+            };
+        } else if (status === 'rejected') {
+            updateData.rejectedAt = new Date().toISOString();
+            updateData.rejectedBy = currentUser.email;
+            updateData.subscription = {
+                status: "inactive",
+                endDate: new Date().toISOString()
+            };
         }
+
+        await userRef.update(updateData);
+
+        showToast(`✅ Estado actualizado a: ${getStatusText(status)}`, 'success');
+        loadUsers();
+    } catch (error) {
+        console.error('Error actualizando estado:', error);
+        showToast('❌ Error al actualizar estado', 'error');
+    }
+}
 
         // ========== GESTIÓN DE DISPOSITIVOS ==========
 
@@ -2107,21 +2111,56 @@ function showDeviceDetails(deviceId) {
             return statusMap[status] || status;
         }
 
-        async function approveRenewal(requestId) {
-            try {
-                await db.collection('renewalRequests').doc(requestId).update({
-                    status: 'approved',
-                    approvedAt: new Date().toISOString(),
-                    approvedBy: currentUser.email
-                });
-                
-                showToast('✅ Renovación aprobada correctamente', 'success');
-                loadRenewalRequests();
-            } catch (error) {
-                console.error('Error aprobando renovación:', error);
-                showToast('❌ Error al aprobar renovación', 'error');
-            }
+        // ✅ Aprobar renovación y extender la suscripción del usuario
+async function approveRenewal(requestId) {
+    try {
+        const renewalRef = db.collection('renewalRequests').doc(requestId);
+        const renewalDoc = await renewalRef.get();
+
+        if (!renewalDoc.exists) {
+            showToast('❌ Solicitud no encontrada', 'error');
+            return;
         }
+
+        const renewalData = renewalDoc.data();
+        const userId = renewalData.userId;
+
+        // 1️⃣ Actualizar el estado de la solicitud
+        await renewalRef.update({
+            status: 'approved',
+            approvedBy: currentUser.email,
+            approvedAt: new Date().toISOString(),
+        });
+
+        // 2️⃣ Actualizar o extender la suscripción del usuario
+        const userRef = db.collection('users').doc(userId);
+        const userDoc = await userRef.get();
+
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            const currentEndDate = userData.subscription?.endDate
+                ? new Date(userData.subscription.endDate)
+                : new Date();
+
+            // Añadir 30 días más a la fecha actual de vencimiento
+            const newEndDate = new Date(currentEndDate);
+            newEndDate.setDate(newEndDate.getDate() + 30);
+
+            await userRef.update({
+                subscription: {
+                    status: "active",
+                    endDate: newEndDate.toISOString()
+                }
+            });
+        }
+
+        showToast('✅ Renovación aprobada y suscripción extendida 30 días', 'success');
+        loadRenewalRequests();
+    } catch (error) {
+        console.error('Error aprobando renovación:', error);
+        showToast('❌ Error al aprobar renovación', 'error');
+    }
+}
 
         async function rejectRenewal(requestId) {
             try {
