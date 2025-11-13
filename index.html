@@ -1392,89 +1392,64 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 // ============================
-// CONTROL DEL ESTADO DE SESIÓN (listener)
+// CONTROL DEL ESTADO DE SESIÓN (versión estable)
 // ============================
-auth.onAuthStateChanged(async (user) => {
-    if (user) {
-        console.log("✅ Sesión activa:", user.email);
+window.addEventListener('load', () => {
+    console.log("🚀 Verificando sesión al cargar la página...");
 
+    auth.onAuthStateChanged(async (user) => {
         try {
-            // Obtener datos del usuario en Firestore
-            const userDoc = await db.collection("users").doc(user.uid).get();
+            if (user) {
+                console.log("✅ Sesión activa:", user.email);
 
-            if (!userDoc.exists) {
-                console.warn("⚠️ El usuario no tiene documento en Firestore");
-                // Forzamos cierre de sesión si falta el doc
-                await auth.signOut();
-                return;
-            }
+                const userDoc = await db.collection("users").doc(user.uid).get();
 
-            const userData = userDoc.data();
-
-            // Obtener approvedAt de forma segura (timestamp o string)
-            let approvedAt = null;
-            if (userData.approvedAt) {
-                if (typeof userData.approvedAt.toDate === 'function') {
-                    approvedAt = userData.approvedAt.toDate();
-                } else {
-                    approvedAt = new Date(userData.approvedAt);
+                if (!userDoc.exists) {
+                    console.warn("⚠️ Usuario sin documento en Firestore, cerrando sesión...");
+                    await auth.signOut();
+                    return;
                 }
-            }
 
-            const now = new Date();
+                const userData = userDoc.data();
+                let approvedAt = null;
+                if (userData.approvedAt) {
+                    approvedAt = userData.approvedAt.toDate
+                        ? userData.approvedAt.toDate()
+                        : new Date(userData.approvedAt);
+                }
 
-            if (!approvedAt) {
-                // Sin fecha de aprobación: mostrar pantalla de suscripción vencida
-                showExpiredSubscriptionScreen(user.email);
-                return;
-            }
+                const now = new Date();
+                const diffDays = approvedAt
+                    ? Math.floor((now - approvedAt) / (1000 * 60 * 60 * 24))
+                    : 999;
 
-            const diffMs = now - approvedAt;
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                if (diffDays >= 30) {
+                    console.log("⚠️ Suscripción vencida");
+                    showExpiredSubscriptionScreen(user.email);
+                } else {
+                    if (typeof loadDashboard === 'function') {
+                        loadDashboard(userData);
+                    } else {
+                        console.warn("⚠️ loadDashboard() no está definida.");
+                    }
 
-            if (diffDays >= 30) {
-                // Suscripción vencida: mostrar pantalla de renovación
-                showExpiredSubscriptionScreen(user.email);
+                    if (typeof startRealTimeUpdates === 'function') {
+                        startRealTimeUpdates(user.uid);
+                    }
+                }
             } else {
-                // Suscripción activa: cargar el dashboard normal
-                // (asegúrate de tener definida la función loadDashboard)
-                if (typeof loadDashboard === 'function') {
-                    loadDashboard(userData);
-                } else {
-                    console.warn("loadDashboard() no está definida.");
-                }
+                console.log("🔒 Ninguna sesión iniciada — mostrando pantalla de login");
 
-                // Además, iniciar el listener en tiempo real para renovaciones
-                if (typeof startRealTimeUpdates === 'function') {
-                    startRealTimeUpdates(user.uid);
-                }
+                // Aquí NO tocamos el body completo, solo mostramos el login original
+                const loginSection = document.getElementById('loginSection');
+                const registerSection = document.getElementById('registerSection');
+                if (loginSection) loginSection.style.display = 'block';
+                if (registerSection) registerSection.style.display = 'none';
             }
-        } catch (error) {
-            console.error("❌ Error verificando estado de usuario:", error);
-            showExpiredSubscriptionScreen(user.email);
+        } catch (err) {
+            console.error("❌ Error en control de sesión:", err);
         }
-        } else {
-        console.log("🔒 Sesión cerrada o no iniciada");
-
-        // Mostrar mensaje simple invitando a iniciar sesión
-        document.body.innerHTML = `
-            <div style="text-align:center; margin-top:40px; color:white;">
-                <h2>Por favor inicia sesión para continuar</h2>
-                <button id="reloadButton" style="padding:10px 20px; margin-top:20px;">Ir al inicio</button>
-            </div>
-        `;
-
-        // 🔄 Forzar recarga del contenido original del index (con ligera espera)
-        setTimeout(() => {
-            const reloadButton = document.getElementById('reloadButton');
-            if (reloadButton) {
-                reloadButton.addEventListener('click', () => {
-                    // Recarga toda la página completa (no solo el HTML interno)
-                    window.location.reload(true);
-                });
-            }
-        }, 100);
-    }
+    });
 });
 
         // Variable global para el fingerprint
