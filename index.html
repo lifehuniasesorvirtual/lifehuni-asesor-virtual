@@ -1411,32 +1411,34 @@ window.addEventListener('load', () => {
                 }
 
                 const userData = userDoc.data();
-                let approvedAt = null;
-                if (userData.approvedAt) {
-                    approvedAt = userData.approvedAt.toDate
-                        ? userData.approvedAt.toDate()
-                        : new Date(userData.approvedAt);
-                }
 
-                const now = new Date();
-                const diffDays = approvedAt
-                    ? Math.floor((now - approvedAt) / (1000 * 60 * 60 * 24))
-                    : 999;
+                // ✅ Verificación basada en la nueva estructura de suscripción
+const now = new Date();
+let subscriptionEndDate = null;
 
-                if (diffDays >= 30) {
-                    console.log("⚠️ Suscripción vencida");
-                    showExpiredSubscriptionScreen(user.email);
-                } else {
-                    if (typeof loadDashboard === 'function') {
-                        loadDashboard(userData);
-                    } else {
-                        console.warn("⚠️ loadDashboard() no está definida.");
-                    }
+// Verificar si el usuario tiene un campo de suscripción válido
+if (userData.subscription && userData.subscription.endDate) {
+    subscriptionEndDate = new Date(userData.subscription.endDate);
+}
 
-                    if (typeof startRealTimeUpdates === 'function') {
-                        startRealTimeUpdates(user.uid);
-                    }
-                }
+// Validar si la suscripción está activa o vencida
+if (!subscriptionEndDate || subscriptionEndDate <= now) {
+    console.log("⚠️ Suscripción vencida o no encontrada");
+    showExpiredSubscriptionScreen(user.email);
+} else {
+    console.log("✅ Suscripción activa hasta:", subscriptionEndDate.toISOString());
+
+    if (typeof loadDashboard === 'function') {
+        loadDashboard(userData);
+    } else {
+        console.warn("⚠️ loadDashboard() no está definida.");
+    }
+
+    if (typeof startRealTimeUpdates === 'function') {
+        startRealTimeUpdates(user.uid);
+    }
+}
+
             } else {
                 console.log("🔒 Ninguna sesión iniciada — mostrando pantalla de login");
 
@@ -1949,31 +1951,37 @@ fingerprintStatus.style.display = 'none';
                 </div>
             `;
         }
+// =====================================
+// FUNCIÓN SINCRONIZADA PARA RENOVAR AHORA
+// =====================================
 async function contactAdminForRenewal(plan) {
-    const user = firebase.auth().currentUser;
-
-    if (!user) {
-        alert("🔒 Debes iniciar sesión nuevamente para enviar tu solicitud de renovación.");
-        firebase.auth().signOut();
-        setTimeout(() => {
-            window.location.href = "index.html"; // vuelve a login
-        }, 2000);
-        return;
-    }
-
     try {
-        // Verificar si ya existe una solicitud pendiente
+        // 🔹 Esperar a que Firebase confirme sesión activa
+        const user = await new Promise((resolve) => {
+            const unsubscribe = firebase.auth().onAuthStateChanged((u) => {
+                unsubscribe();
+                resolve(u);
+            });
+        });
+
+        if (!user) {
+            alert("🔒 Debes iniciar sesión nuevamente para enviar tu solicitud de renovación.");
+            firebase.auth().signOut();
+            return;
+        }
+
+        // 🔍 Verificar si ya existe una solicitud pendiente
         const existingRequest = await db.collection('renewalRequests')
             .where('userId', '==', user.uid)
             .where('status', '==', 'pending')
             .get();
 
         if (!existingRequest.empty) {
-            alert("📬 Ya has enviado una solicitud de renovación. Espera la respuesta del administrador.");
+            alert("📬 Ya enviaste una solicitud de renovación. Espera la respuesta del administrador.");
             return;
         }
 
-        // Crear nueva solicitud de renovación
+        // 🆕 Crear nueva solicitud de renovación
         await db.collection('renewalRequests').add({
             userId: user.uid,
             userEmail: user.email,
@@ -1983,12 +1991,13 @@ async function contactAdminForRenewal(plan) {
         });
 
         alert("✅ Solicitud enviada correctamente. Te contactaremos para confirmar el pago y reactivar tu servicio.");
+
+        console.log("🔄 Solicitud registrada para:", user.email);
     } catch (error) {
-        console.error("Error enviando solicitud:", error);
-        alert("❌ Ocurrió un error al enviar la solicitud. Intenta nuevamente.");
+        console.error("❌ Error enviando solicitud de renovación:", error);
+        alert("Ocurrió un error al enviar la solicitud. Intenta nuevamente.");
     }
-}
-       
+}      
        function contactSupport() {
     const user = firebase.auth().currentUser; // obtiene el usuario actual
     const phoneNumber = "573023706402"; // sin el símbolo +, con el indicativo de país
@@ -2455,31 +2464,30 @@ async function contactAdminForRenewal(plan) {
                 const userDoc = await db.collection('users').doc(user.uid).get();
                 const userData = userDoc.data();
                 
-                // Calcular días hasta vencimiento
-                let daysUntilExpiration = 0;
-                if (userData.approvedAt) {
-                    const approvedDate = userData.approvedAt.toDate();
-                    const expirationDate = new Date(approvedDate);
-                    expirationDate.setDate(expirationDate.getDate() + 30);
-                    const today = new Date();
-                    daysUntilExpiration = Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24));
-                }
+                // ✅ Calcular días hasta el vencimiento con el nuevo sistema de suscripción
+let daysUntilExpiration = 0;
+if (userData.subscription && userData.subscription.endDate) {
+    const expirationDate = new Date(userData.subscription.endDate);
+    const today = new Date();
+    daysUntilExpiration = Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24));
+}
 
-                // Crear solicitud de renovación en Firestore
-                await db.collection('renewalRequests').add({
-                    userId: user.uid,
-                    userEmail: user.email,
-                    requestedPlan: 'Premium',
-                    status: 'pending',
-                    requestedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    daysUntilExpiration: daysUntilExpiration,
-                    currentEndDate: userData.approvedAt ? 
-                        new Date(userData.approvedAt.toDate().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() : 
-                        new Date().toISOString()
-                });
+// ✅ Crear solicitud de renovación en Firestore
+await db.collection('renewalRequests').add({
+    userId: user.uid,
+    userEmail: user.email,
+    requestedPlan: 'Premium',
+    status: 'pending',
+    requestedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    daysUntilExpiration: daysUntilExpiration,
+    currentEndDate: userData.subscription && userData.subscription.endDate
+        ? userData.subscription.endDate
+        : new Date().toISOString()
+});
 
-                showDashboardMessage('✅ Solicitud enviada. Te contactaremos para confirmar el pago.', 'success');
-                
+showDashboardMessage('✅ Solicitud enviada. Te contactaremos para confirmar el pago.', 'success');
+console.log('Solicitud de renovación creada para:', user.email);
+  
                 // Log para debugging
                 console.log('Solicitud de renovación creada para:', user.email);
                 
@@ -3037,62 +3045,41 @@ async function sendToGPTProxy(message, userId) {
             }
         }
 
-        // 🔄 INICIAR ACTUALIZACIONES EN TIEMPO REAL - VERSIÓN MEJORADA
-        function startRealTimeUpdates(userUID) {
-    // Suscribirse a cambios en el documento de usuario
+        // 🔄 Escucha en tiempo real para cambios de estado del usuario y renovaciones
+function startRealTimeUpdates(userUID) {
+    console.log("👂 Escuchando cambios en tiempo real para:", userUID);
+
+    // Escuchar cambios en los datos del usuario
     const userUnsubscribe = db.collection('users').doc(userUID)
         .onSnapshot((doc) => {
             if (doc.exists) {
                 const userData = doc.data();
                 updateDashboardWithRealTimeData(userData);
-
-                // Si ya hay un listener de renovaciones, lo removemos para evitar duplicados
-                if (window.renewalUnsubscribe) {
-                    try { window.renewalUnsubscribe(); } catch(e) { /* ignore */ }
-                    window.renewalUnsubscribe = null;
-                }
-
-                // Crear un listener en tiempo real para la última solicitud de renovación de este usuario
-                if (userData && userData.email) {
-                    window.renewalUnsubscribe = db.collection("renewalRequests")
-                        .where("userEmail", "==", userData.email)
-                        .orderBy("requestedAt", "desc")
-                        .limit(1)
-                        .onSnapshot((snapshot) => {
-                            if (snapshot.empty) return;
-                            const doc = snapshot.docs[0];
-                            const request = doc.data();
-                            const status = request.status;
-
-                            if (status === "approved") {
-                                showDashboardMessage("🎉 Tu renovación ha sido aprobada. El acceso ha sido reactivado.", "success");
-                            } else if (status === "rejected") {
-                                showDashboardMessage("❌ Tu renovación fue rechazada. Contacta soporte para más información.", "error");
-                            } else if (status === "pending") {
-                                showDashboardMessage("⌛ Tu solicitud de renovación está pendiente de revisión por el administrador.", "info");
-                            }
-                        }, (err) => {
-                            console.error("Error escuchando renovaciones:", err);
-                        });
-                }
             }
         }, (error) => {
-            console.error('Error en actualización en tiempo real:', error);
+            console.error('Error en actualización en tiempo real del usuario:', error);
         });
 
-    // Guardar referencia para limpiar después
-    window.dashboardUnsubscribe = userUnsubscribe;
-}
+    // Escuchar cambios en la solicitud de renovación
+    const renewUnsubscribe = db.collection('renewalRequests')
+        .where('userId', '==', userUID)
+        .onSnapshot((snapshot) => {
+            snapshot.docChanges().forEach(change => {
+                const data = change.doc.data();
+                if (change.type === 'modified' && data.status === 'approved') {
+                    showDashboardMessage('🎉 Tu renovación ha sido aprobada. El acceso ha sido reactivado.', 'success');
+                    console.log("✅ Renovación aprobada detectada en tiempo real.");
+                    window.location.reload(); // recarga para aplicar el acceso completo
+                } else if (change.type === 'modified' && data.status === 'rejected') {
+                    showDashboardMessage('❌ Tu solicitud de renovación fue rechazada. Contacta al soporte.', 'error');
+                }
+            });
+        });
 
-        // 🧹 LIMPIAR RECURSOS AL SALIR - VERSIÓN MEJORADA
-        function cleanupDashboard() {
-            if (window.dashboardUnsubscribe) {
-                window.dashboardUnsubscribe();
-            }
-            if (window.notificationsUnsubscribe) {
-                window.notificationsUnsubscribe();
-            }
-        }
+    // Guardar referencias para detener listeners si es necesario
+    window.dashboardUnsubscribe = userUnsubscribe;
+    window.renewUnsubscribe = renewUnsubscribe;
+}
 
         console.log("✅ SISTEMA LIFEHUNI COMPLETO - Dashboard Cliente Premium con Chat GPT Integrado");
 </script>
