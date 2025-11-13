@@ -2162,21 +2162,47 @@ async function approveRenewal(requestId) {
     }
 }
 
-        async function rejectRenewal(requestId) {
-            try {
-                await db.collection('renewalRequests').doc(requestId).update({
-                    status: 'rejected',
-                    rejectedAt: new Date().toISOString(),
-                    rejectedBy: currentUser.email
-                });
-                
-                showToast('❌ Renovación rechazada correctamente', 'success');
-                loadRenewalRequests();
-            } catch (error) {
-                console.error('Error rechazando renovación:', error);
-                showToast('❌ Error al rechazar renovación', 'error');
-            }
+        // ✅ Rechazar renovación y desactivar la suscripción del usuario
+async function rejectRenewal(requestId) {
+    try {
+        const renewalRef = db.collection('renewalRequests').doc(requestId);
+        const renewalDoc = await renewalRef.get();
+
+        if (!renewalDoc.exists) {
+            showToast('❌ Solicitud no encontrada', 'error');
+            return;
         }
+
+        const renewalData = renewalDoc.data();
+        const userId = renewalData.userId;
+
+        // 1️⃣ Actualizar estado de la solicitud
+        await renewalRef.update({
+            status: 'rejected',
+            rejectedBy: currentUser.email,
+            rejectedAt: new Date().toISOString()
+        });
+
+        // 2️⃣ Cambiar la suscripción del usuario a inactiva
+        const userRef = db.collection('users').doc(userId);
+        const userDoc = await userRef.get();
+
+        if (userDoc.exists) {
+            await userRef.update({
+                subscription: {
+                    status: "inactive",
+                    endDate: new Date().toISOString()
+                }
+            });
+        }
+
+        showToast('❌ Renovación rechazada y suscripción desactivada', 'success');
+        loadRenewalRequests();
+    } catch (error) {
+        console.error('Error rechazando renovación:', error);
+        showToast('❌ Error al rechazar renovación', 'error');
+    }
+}
 
         // ========== USUARIOS PRÓXIMOS A VENCER ==========
         async function loadExpiringUsers() {
